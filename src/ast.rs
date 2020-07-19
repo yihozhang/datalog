@@ -1,3 +1,5 @@
+use crate::util::Result;
+
 #[derive(Clone, Debug)]
 pub struct Rule {
     head: Atom,
@@ -12,13 +14,13 @@ impl Rule {
 
 #[derive(Clone, Debug)]
 pub struct Atom {
-    rel: String,
+    rel_id: Symbol,
     exprs: Vec<Expr>,
 }
 
 impl Atom {
-    pub fn new(rel: String, exprs: Vec<Expr>) -> Atom {
-        Atom { rel, exprs }
+    pub fn new(rel_id: String, exprs: Vec<Expr>) -> Atom {
+        Atom { rel_id, exprs }
     }
 }
 
@@ -40,53 +42,58 @@ impl Expr {
         Expr::Lit(s)
     }
 }
-type Integer = i32;
-type Symbol = String;
 
-#[macro_export]
-macro_rules! var {
-    ($e:expr) => {
-        $crate::ast::Expr::var($e)
-    };
+pub type Integer = i32;
+
+// TODO: Make literal truly copyable
+#[derive(Clone, Copy, Debug)]
+pub struct Literal {
+    id: u32
 }
 
-#[macro_export]
-macro_rules! int {
-    ($e:expr) => {
-        $crate::ast::Expr::int($e)
-    };
+impl Literal {
+    pub fn new(s: String) -> Literal {
+        unimplemented!();
+    }
 }
 
-#[macro_export]
-macro_rules! lit {
-    ($e:expr) => {
-        $crate::ast::Expr::lit($e)
-    };
+// impl Copy for Literal {}
+
+pub type Symbol = String;
+
+#[derive(Clone, Copy, Debug)]
+pub enum Type {
+    TInt, TString
 }
 
-#[macro_export]
-macro_rules! rule {
-    ($e:expr, $($es:expr),+) => {
-        $crate::ast::Rule::new($e, vec!($($es),+))
-    };
+impl Type {
+    pub fn size(&self) -> usize {
+        match self {
+            Type::TInt => 4,
+            Type::TString => 8
+        }
+    }
 }
 
-#[macro_export]
-macro_rules! atom {
-    ($e:expr, $($es:expr),+) => {
-        $crate::ast::Atom::new($e, vec!($($es),+))
-    };
-}
+pub struct Schema(Vec<(Symbol, Type, usize)>);
 
-#[cfg(test)]
-mod ast_tests {
-    use crate::ast::*;
-    #[test]
-    fn ast_macro_test() {
-        let expr1: Expr = lit!("Hello, world".into());
-        let expr2: Expr = int!(123);
-        let expr3: Expr = var!("x".into());
-        let atom1: Atom = atom!("Rel".into(), expr1, expr2, expr3);
-        let _rule1: Rule = rule!(atom1.clone(), atom1.clone(), atom1.clone());
+impl Schema {
+    pub fn new(schema: Vec<(Symbol, Type)>) -> Schema {
+        let mut offset = 0;
+        let vec = schema.into_iter().map(|(sym, ty)| {
+            let curr = offset;
+            offset += ty.size();
+            (sym, ty, curr)
+        }).collect();
+        Schema(vec)
+    }
+
+    pub fn symbol_to_offset(&self, symbol: &Symbol) -> Result<usize> {
+        for (sym, _, sz) in self.0.iter() {
+            if sym == symbol {
+                return Ok(*sz);
+            }
+        }
+        Err(format!("symbol {} not found", symbol))
     }
 }
