@@ -1,4 +1,8 @@
 use crate::util::Result;
+use std::collections::HashMap;
+use std::sync::{Mutex, MutexGuard};
+use std::mem::size_of;
+use lazy_static::lazy_static;
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -45,19 +49,26 @@ impl Expr {
 
 pub type Integer = i32;
 
-// TODO: Make literal truly copyable
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Literal {
     id: u32
 }
 
-impl Literal {
-    pub fn new(s: String) -> Literal {
-        unimplemented!();
-    }
+lazy_static! {
+    static ref ID_STORE: Mutex<(HashMap<String, u32>, u32)> = Mutex::new((HashMap::new(), 0));
 }
 
-// impl Copy for Literal {}
+impl Literal {
+    pub fn new(s: String) -> Literal {
+        let mut store = ID_STORE.lock().unwrap();
+        let (store, cnt) = &mut *store;
+        let id = store.entry(s).or_insert_with(|| {
+            *cnt += 1;
+            *cnt
+        });
+        Literal { id: *id }
+    }
+}
 
 pub type Symbol = String;
 
@@ -69,8 +80,8 @@ pub enum Type {
 impl Type {
     pub fn size(&self) -> usize {
         match self {
-            Type::TInt => 4,
-            Type::TString => 8
+            Type::TInt => size_of::<i32>(),
+            Type::TString => size_of::<String>(),
         }
     }
 }
@@ -88,10 +99,10 @@ impl Schema {
         Schema(vec)
     }
 
-    pub fn symbol_to_offset(&self, symbol: &Symbol) -> Result<usize> {
-        for (sym, _, sz) in self.0.iter() {
+    pub fn symbol_to_pos_info(&self, symbol: &Symbol) -> Result<(Type, usize)> {
+        for (sym, ty, sz) in self.0.iter() {
             if sym == symbol {
-                return Ok(*sz);
+                return Ok((*ty, *sz));
             }
         }
         Err(format!("symbol {} not found", symbol))
