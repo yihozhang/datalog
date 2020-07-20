@@ -1,6 +1,6 @@
 use crate::util::Result;
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex};
 use std::mem::size_of;
 use lazy_static::lazy_static;
 
@@ -86,7 +86,8 @@ impl Type {
     }
 }
 
-pub struct Schema(Vec<(Symbol, Type, usize)>);
+#[derive(Clone, Debug)]
+pub struct Schema(pub Vec<(Symbol, Type, usize)>);
 
 impl Schema {
     pub fn new(schema: Vec<(Symbol, Type)>) -> Schema {

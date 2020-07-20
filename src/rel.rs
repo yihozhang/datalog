@@ -13,15 +13,17 @@ pub trait Tuple {
 }
 
 pub trait Rel {
-    type T: Tuple;
-    type C: Column;
+    type T<'a>: Tuple;
+    type C<'a>: Column;
     type PosInfo;
 
-    fn at(&self, pos: usize) -> Result<Self::T>;
-    fn col(&self, sym: &Symbol) -> Result<Self::C>;
+    fn new(schema: &Schema) -> Self;
+
+    fn at<'a>(&'a self, pos: usize) -> Result<Self::T<'a>>;
+    fn col<'a>(&'a self, sym: &Symbol) -> Result<Self::C<'a>>;
 
     fn symbol_to_pos_info(&self, sym: &Symbol) -> Result<Self::PosInfo>;
-    fn col_by_pos_info(&self, pos_info: Self::PosInfo) -> Result<Self::C>;
+    fn col_by_pos_info<'a>(&'a self, pos_info: Self::PosInfo) -> Result<Self::C<'a>>;
 }
 
 pub struct RowRel {
@@ -61,6 +63,9 @@ pub struct RowRelColumn<'a> {
 
 impl<'a> Column for RowRelColumn<'a> {
     fn get(&self, row: usize) -> Result<Cell> {
+        if row >= self.rel.tuple_nums {
+            return Err(format!("row {} out of bound ({})", row, self.rel.tuple_nums));
+        }
         unsafe {
             let ptr = self.rel.tuples.as_ptr().add(row * self.rel.tuple_nums + self.col_offset);
             Ok(Cell::ptr_to_cell(ptr, self.ty))
@@ -82,12 +87,21 @@ impl Cell {
     }
 }
 
-impl<'a> Rel for &'a RowRel {
-    type T = RowRelTuple<'a>;
-    type C = RowRelColumn<'a>;
+impl Rel for RowRel {
+    type T<'a> = RowRelTuple<'a>;
+    type C<'a> = RowRelColumn<'a>;
     type PosInfo = (Type, usize);
-    
-    fn at(&self, pos: usize) -> Result<RowRelTuple<'a>> {
+
+    fn new(schema: &Schema) -> RowRel {
+        RowRel {
+            tuples: Vec::new(),
+            tuple_nums: 0,
+            tuple_size: schema.0.last().unwrap().2,
+            schema: schema.clone()
+        }
+    }
+
+    fn at<'a>(&'a self, pos: usize) -> Result<Self::T<'a>> {
         if pos >= self.tuple_nums {
             return Err(format!("{} is out of bound ({})", pos, self.tuple_nums));
         }
@@ -102,12 +116,14 @@ impl<'a> Rel for &'a RowRel {
         self.schema.symbol_to_pos_info(sym)
     }
 
-    fn col(&self, sym: &Symbol) -> Result<RowRelColumn<'a>> {
+    fn col<'a>(&'a self, sym: &Symbol) -> Result<Self::C<'a>> {
         let pos_info = self.symbol_to_pos_info(sym)?;
         self.col_by_pos_info(pos_info)
     }
 
-    fn col_by_pos_info(&self, pos_info: (Type, usize)) -> Result<RowRelColumn<'a>> {
+    // TODO: make PosInfo inner structure invisible to outside, so that it's safe not to
+    // check the precondition
+    fn col_by_pos_info<'a>(&'a self, pos_info: (Type, usize)) -> Result<RowRelColumn<'a>> {
         Ok(RowRelColumn {
             rel: self,
             col_offset: pos_info.1,
