@@ -11,26 +11,26 @@ pub trait Tuple: Clone {
     fn get_by_pos_info(&self, pos_info: Self::PosInfo) -> Result<Cell>;
 }
 
-// 'a is to specify the lifetime of all reference to self of trait methods.
 pub trait Rel<'a>: Clone {
-    type T: Tuple;
-    type C: Column;
+    type T<'a>: Tuple;
+    type C<'a>: Column;
     type PosInfo;
-    type Iter: Iterator<Item = Self::T>;
+    type Iter<'a>: Iterator<Item = Self::T<'a>>;
 
     fn new(schema: &Schema) -> Self;
 
-    fn at(&'a self, pos: usize) -> Result<Self::T>;
-    fn col(&'a self, sym: &Symbol) -> Result<Self::C>;
+    fn at<'a>(&'a self, pos: usize) -> Result<Self::T<'a>>;
+    fn col<'a>(&'a self, sym: &Symbol) -> Result<Self::C<'a>>;
 
     fn symbol_to_pos_info(&self, sym: &Symbol) -> Result<Self::PosInfo>;
-    fn col_by_pos_info(&'a self, pos_info: Self::PosInfo) -> Result<Self::C>;
+    fn col_by_pos_info<'a>(&'a self, pos_info: Self::PosInfo) -> Result<Self::C<'a>>;
 
     fn size(&self) -> usize;
     fn is_empty(&self) -> bool;
     fn insert(&mut self, tuple: Vec<Cell>);
 
-    fn iter(&'a self) -> Self::Iter;
+    fn iter<'a>(&'a self) -> Self::Iter<'a>;
+    // fn iter<'a>(&'a self) -> impl Iterator<Item = Self::T<'a>>;
 }
 
 #[derive(Clone)]
@@ -41,13 +41,13 @@ pub struct RowRel {
     schema: Schema,
 }
 
-impl<'a> Rel<'a> for RowRel {
-    type T = RowRelTuple<'a>;
-    type C = RowRelColumn<'a>;
+impl Rel for RowRel {
+    type T<'a> = RowRelTuple<'a>;
+    type C<'a> = RowRelColumn<'a>;
     type PosInfo = (Type, usize);
-    type Iter = impl Iterator<Item = Self::T>;
+    type Iter<'a> = impl Iterator<Item = Self::T<'a>>;
     
-    fn iter(&'a self) -> Self::Iter {
+    fn iter<'a>(&'a self) -> Self::Iter<'a> {
         (0..self.tuple_nums).map(move |idx| self.at(idx).unwrap())
     }
 
@@ -60,7 +60,7 @@ impl<'a> Rel<'a> for RowRel {
         }
     }
 
-    fn at(&'a self, pos: usize) -> Result<Self::T> {
+    fn at<'a>(&'a self, pos: usize) -> Result<Self::T<'a>> {
         if pos >= self.tuple_nums {
             return Err(format!("{} is out of bound ({})", pos, self.tuple_nums));
         }
@@ -75,14 +75,14 @@ impl<'a> Rel<'a> for RowRel {
         self.schema.symbol_to_pos_info(sym)
     }
 
-    fn col(&'a self, sym: &Symbol) -> Result<Self::C> {
+    fn col<'a>(&'a self, sym: &Symbol) -> Result<Self::C<'a>> {
         let pos_info = self.symbol_to_pos_info(sym)?;
         self.col_by_pos_info(pos_info)
     }
 
     // TODO: make PosInfo inner structure invisible to outside, so that it's safe not to
     // check the precondition
-    fn col_by_pos_info(&'a self, pos_info: (Type, usize)) -> Result<RowRelColumn> {
+    fn col_by_pos_info<'a>(&'a self, pos_info: (Type, usize)) -> Result<RowRelColumn<'a>> {
         Ok(RowRelColumn {
             rel: self,
             col_offset: pos_info.1,

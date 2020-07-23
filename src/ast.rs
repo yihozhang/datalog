@@ -6,8 +6,8 @@ use lazy_static::lazy_static;
 
 #[derive(Clone, Debug)]
 pub struct Rule {
-    head: Atom,
-    body: Vec<Atom>,
+    pub head: Atom,
+    pub body: Vec<Atom>,
 }
 
 impl Rule {
@@ -18,8 +18,8 @@ impl Rule {
 
 #[derive(Clone, Debug)]
 pub struct Atom {
-    rel_id: Symbol,
-    exprs: Vec<Expr>,
+    pub rel_id: Symbol,
+    pub exprs: Vec<Expr>,
 }
 
 impl Atom {
@@ -74,14 +74,14 @@ pub type Symbol = String;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Type {
-    TInt, TString
+    IntType, LitType
 }
 
 impl Type {
     pub fn size(&self) -> usize {
         match self {
-            Type::TInt => size_of::<i32>(),
-            Type::TString => size_of::<String>(),
+            Type::IntType => size_of::<i32>(),
+            Type::LitType => size_of::<String>(),
         }
     }
 }
